@@ -16,7 +16,12 @@ export function generateGameHTML(def: PlayableGameDefinition): string {
     const archetype = def.gameIdentity?.archetype;
     if (archetype === 'SNAKE') {
         runtimeSpecific = fs.readFileSync(path.join(process.cwd(), 'src/engine/runtime_js/SnakeRuntime.js'), 'utf-8');
-    } else if (archetype === 'PLATFORMER') {
+    } else if (archetype === 'TOP_DOWN_SHOOTER' || archetype === 'SHOOTER') {
+        runtimeSpecific = fs.readFileSync(path.join(process.cwd(), 'src/engine/runtime_js/ShooterRuntime.js'), 'utf-8');
+    } else if (archetype === 'ENDLESS_RUNNER' || archetype === 'RUNNER') {
+        runtimeSpecific = fs.readFileSync(path.join(process.cwd(), 'src/engine/runtime_js/RunnerRuntime.js'), 'utf-8');
+    } else {
+        // Default to Platformer if not Snake or Shooter
         runtimeSpecific = fs.readFileSync(path.join(process.cwd(), 'src/engine/runtime_js/PlatformerRuntime.js'), 'utf-8');
     }
     
@@ -2092,11 +2097,12 @@ export function generateGameHTML(def: PlayableGameDefinition): string {
         
         const ctx = canvas.getContext('2d', { alpha: false });
         
-        const Game = RuntimeFactory.createRuntime(config);
+        const Engine = RuntimeFactory.createRuntime(config);
+        Engine.initialize(ctx);
         
         // Add interactive HUD button events
         document.getElementById('btn-locate').addEventListener('click', () => {
-            // Camera.locate(player); // This needs to be handled by Game
+            // Camera.locate(player); // This needs to be handled by Engine
         });
         document.getElementById('btn-restart').addEventListener('click', () => {
             location.reload();
@@ -2110,15 +2116,15 @@ export function generateGameHTML(def: PlayableGameDefinition): string {
 
         // Main game tick function
         function gameLoop(time) {
-            const dt = Math.min((time - Game.lastTime) / 1000, 0.08);
-            Game.lastTime = time;
+            const dt = Math.min((time - (Engine.lastTime || time)) / 1000, 0.08);
+            Engine.lastTime = time;
             
-            Input.update();
+            // Input.update();
             
-            Game.update(dt);
+            Engine.update(dt);
             
             // Draw
-            Game.render(ctx);
+            Engine.render(ctx);
             
             // Atmospheric cinematic vignette
             const grad = ctx.createRadialGradient(width/2, height/2, height*0.4, width/2, height/2, height);
@@ -2140,15 +2146,15 @@ export function generateGameHTML(def: PlayableGameDefinition): string {
             // Update debug overlay
             const loopEl = document.getElementById('debug-loop');
             if (loopEl) {
-                loopEl.innerText = Game.state;
-                loopEl.style.color = Game.state === 'PLAYING' ? '#22c55e' : (Game.state === 'PAUSED' ? '#38bdf8' : '#ef4444');
+                loopEl.innerText = Engine.state;
+                loopEl.style.color = Engine.state === 'PLAYING' ? '#22c55e' : (Engine.state === 'PAUSED' ? '#38bdf8' : '#ef4444');
             }
             const playerEl = document.getElementById('debug-player');
             if (playerEl) {
-                if (Game.entities.player && Game.state === 'PLAYING') {
+                if (Engine.entities.player && Engine.state === 'PLAYING') {
                     playerEl.innerText = 'ACTIVE';
                     playerEl.style.color = '#22c55e';
-                } else if (Game.state === 'END') {
+                } else if (Engine.state === 'END') {
                     playerEl.innerText = 'DESTROYED';
                     playerEl.style.color = '#ef4444';
                 } else {
@@ -2158,12 +2164,12 @@ export function generateGameHTML(def: PlayableGameDefinition): string {
             }
             const entitiesEl = document.getElementById('debug-entities');
             if (entitiesEl) {
-                const totalEntities = (Game.entities.player ? 1 : 0) + Game.entities.collectibles.length + Game.entities.hazards.length + Game.entities.environment.length;
+                const totalEntities = (Engine.entities.player ? 1 : 0) + Engine.entities.collectibles.length + Engine.entities.hazards.length + Engine.entities.environment.length;
                 entitiesEl.innerText = totalEntities;
             }
             const inputEl = document.getElementById('debug-input');
             if (inputEl) {
-                const isInputActive = Input.left() || Input.right() || Input.up() || Input.down();
+                const isInputActive = Engine.input ? (Engine.input.isDown('ArrowLeft') || Engine.input.isDown('ArrowRight') || Engine.input.isDown('ArrowUp') || Engine.input.isDown('ArrowDown')) : false;
                 if (isInputActive) {
                     inputEl.innerText = 'ACTIVE';
                     inputEl.style.color = '#22c55e';
@@ -2173,11 +2179,17 @@ export function generateGameHTML(def: PlayableGameDefinition): string {
                 }
             }
             
-            Game.reqId = requestAnimationFrame(gameLoop);
+            // HUD Updates
+            const scoreEl = document.getElementById('score-display');
+            if (scoreEl && Engine.score !== undefined) {
+                scoreEl.innerText = Engine.score.toString().padStart(4, '0');
+            }
+
+            Engine.reqId = requestAnimationFrame(gameLoop);
         }
         
-        Game.lastTime = performance.now();
-        requestAnimationFrame(gameLoop);
+        Engine.lastTime = performance.now();
+        Engine.reqId = requestAnimationFrame(gameLoop);
     </script>
 </body>
 </html>`;

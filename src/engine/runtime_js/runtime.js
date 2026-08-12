@@ -14,14 +14,23 @@ class GameRuntime {
     };
   }
 
-  initialize() {}
+  initialize(ctx) {
+    this.ctx = ctx;
+  }
+  
   handleInput() {}
+  
   update(dt) {}
+  
   render(ctx) {
+    if (!ctx) ctx = this.ctx;
+    if (!ctx) return;
+
     ctx.fillStyle = this.config.colors.bg;
     ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
     this.particles.render(ctx);
   }
+  
   reset() {}
   pause() { this.state = 'PAUSED'; }
   resume() { this.state = 'PLAYING'; }
